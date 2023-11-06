@@ -1,0 +1,14 @@
+runtime: python39  # Use Python 3.9
+instance_class: F2  # Choose an instance class based on your needs
+entrypoint: uvicorn main:app --host 0.0.0.0 --port $PORT
+
+automatic_scaling:
+  target_cpu_utilization: 0.65
+  min_instances: 1
+  max_instances: 10
+
+env_variables:
+  PORT: 8080
+
+network: 
+  instance_tag: allow-8080  # This tag will be used in the firewall rule
