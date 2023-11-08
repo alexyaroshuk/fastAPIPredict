@@ -12,8 +12,15 @@ import os
 import base64
 from config import Config  # Import the Config class
 import logging
+import shutil
 
 app = FastAPI()
+
+# Define the models directory
+MODELS_DIR = 'models'
+
+# Ensure the models directory exists
+os.makedirs(MODELS_DIR, exist_ok=True)
 
 # Add CORS middleware
 app.add_middleware(
@@ -72,18 +79,16 @@ async def upload_model(request: Request, model_file: UploadFile = File(...)):
         model = torch.load(model_data)
         model_name = model_file.filename
 
-        # Create a temporary directory
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Save the model to a file in the temporary directory
-            model_path = os.path.join(temp_dir, model_name)
-            torch.save(model, model_path)
+        # Save the model to a file in the models directory
+        model_path = os.path.join(MODELS_DIR, model_name)
+        torch.save(model, model_path)
 
-            # Store the model path in the session instead of the model itself
-            request.session['model_path'] = model_path
-            request.session['model_name'] = model_name
+        # Store the model path in the session instead of the model itself
+        request.session['model_path'] = model_path
+        request.session['model_name'] = model_name
 
-            # Store the model in the global variable
-            loaded_model = YOLO(model_path)  # Load the model using YOLO
+        # Store the model in the global variable
+        loaded_model = YOLO(model_path)  # Load the model using YOLO
 
         return {"message": f"Model {model_name} loaded successfully", "model_name": model_name}
     except RuntimeError as e:  # Correct exception for PyTorch model loading
@@ -96,6 +101,25 @@ async def upload_model(request: Request, model_file: UploadFile = File(...)):
         print(e)
         raise HTTPException(
             status_code=500, detail=f"Unexpected error: {str(e)}")
+        
+        
+@app.post("/select_model")
+async def select_model(request: Request, model_name: str):
+    global loaded_model
+    model_path = os.path.join(MODELS_DIR, model_name)
+
+    # Check if the model file exists
+    if not os.path.exists(model_path):
+        raise HTTPException(status_code=404, detail="Model file not found")
+
+    # Store the model path in the session instead of the model itself
+    request.session['model_path'] = model_path
+    request.session['model_name'] = model_name
+
+    # Store the model in the global variable
+    loaded_model = YOLO(model_path)  # Load the model using YOLO
+
+    return {"message": f"Model {model_name} selected successfully", "model_name": model_name}
 
 
 @app.post("/predict")
