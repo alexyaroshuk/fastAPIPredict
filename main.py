@@ -122,6 +122,17 @@ async def select_model(request: Request, model_name: str):
     return {"message": f"Model {model_name} selected successfully", "model_name": model_name}
 
 
+
+@app.get("/models")
+async def list_models():
+    try:
+        models = os.listdir(MODELS_DIR)
+        return {"models": models}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Unexpected error: {str(e)}")
+
+
 @app.post("/predict")
 async def predict(request: Request, file: UploadFile = File(...)):
     global loaded_model
