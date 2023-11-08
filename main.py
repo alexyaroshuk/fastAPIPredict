@@ -19,6 +19,11 @@ app = FastAPI()
 # Define the models directory
 MODELS_DIR = 'models'
 
+DISK_DIR = '/disk'
+
+# Ensure the disk directory exists
+os.makedirs(DISK_DIR, exist_ok=True)
+
 # Ensure the models directory exists
 os.makedirs(MODELS_DIR, exist_ok=True)
 
@@ -79,8 +84,8 @@ async def upload_model(request: Request, model_file: UploadFile = File(...)):
         model = torch.load(model_data)
         model_name = model_file.filename
 
-        # Save the model to a file in the models directory
-        model_path = os.path.join(MODELS_DIR, model_name)
+        # Save the model to a file in the disk directory
+        model_path = os.path.join(DISK_DIR, model_name)
         torch.save(model, model_path)
 
         # Store the model path in the session instead of the model itself
@@ -99,6 +104,15 @@ async def upload_model(request: Request, model_file: UploadFile = File(...)):
     except Exception as e:
         logging.error(f"Exception: {str(e)}")
         print(e)
+        raise HTTPException(
+            status_code=500, detail=f"Unexpected error: {str(e)}")
+        
+@app.get("/disk_content")
+async def disk_content():
+    try:
+        content = os.listdir(DISK_DIR)
+        return {"content": content}
+    except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Unexpected error: {str(e)}")
         
