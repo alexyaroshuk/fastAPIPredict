@@ -25,7 +25,7 @@ os.makedirs(MODELS_DIR, exist_ok=True)
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=Config.CORS_ORIGINS,
+    allow_origins="https://yolo-predict-tester-git-dev-alexyaroshuk.vercel.app",
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
@@ -120,6 +120,19 @@ async def select_model(request: Request, model_name: str):
     loaded_model = YOLO(model_path)  # Load the model using YOLO
 
     return {"message": f"Model {model_name} selected successfully", "model_name": model_name}
+
+
+@app.get("/project_structure")
+async def project_structure():
+    project_structure = {}
+
+    for root, dirs, files in os.walk("."):
+        project_structure[root] = {
+            "dirs": dirs,
+            "files": files
+        }
+
+    return project_structure
 
 
 
