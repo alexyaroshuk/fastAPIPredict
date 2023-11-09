@@ -79,33 +79,40 @@ async def download_model(request: Request):
 @app.post("/upload_model")
 async def upload_model(request: Request, model_file: UploadFile = File(...)):
     global loaded_model
-    try:
-        model_data = io.BytesIO(await model_file.read())
-        model = torch.load(model_data)
-        model_name = model_file.filename
+    model_data = io.BytesIO(await model_file.read())
+    model = torch.load(model_data)
+    model_name = model_file.filename
 
-        # Save the model to a file in the disk directory
-        model_path = os.path.join(DISK_DIR, model_name)
-        torch.save(model, model_path)
+    # Save the model to a file in the disk directory
+    try:
+        disk_model_path = os.path.join(DISK_DIR, model_name)
+        torch.save(model, disk_model_path)
+        logging.info(f"Model {model_name} saved to disk directory successfully")
+    except Exception as e:
+        logging.error(f"Exception when saving to disk directory: {str(e)}")
+
+    # Save the model to a file in the models directory
+    try:
+        models_model_path = os.path.join(MODELS_DIR, model_name)
+        torch.save(model, models_model_path)
+        logging.info(f"Model {model_name} saved to models directory successfully")
 
         # Store the model path in the session instead of the model itself
-        request.session['model_path'] = model_path
+        request.session['model_path'] = models_model_path
         request.session['model_name'] = model_name
 
         # Store the model in the global variable
-        loaded_model = YOLO(model_path)  # Load the model using YOLO
-
-        return {"message": f"Model {model_name} loaded successfully", "model_name": model_name}
+        loaded_model = YOLO(models_model_path)  # Load the model using YOLO
     except RuntimeError as e:  # Correct exception for PyTorch model loading
         logging.error(f"RuntimeError: {str(e)}")
-        print(e)
         raise HTTPException(
             status_code=400, detail=f"Error loading model: {str(e)}")
     except Exception as e:
-        logging.error(f"Exception: {str(e)}")
-        print(e)
+        logging.error(f"Exception when saving to models directory: {str(e)}")
         raise HTTPException(
             status_code=500, detail=f"Unexpected error: {str(e)}")
+
+    return {"message": f"Model {model_name} loaded successfully", "model_name": model_name}
         
 @app.get("/disk_content")
 async def disk_content():
