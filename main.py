@@ -139,6 +139,7 @@ async def select_model(request: Request, model_name: str):
 
     # Store the model in the global variable
     loaded_model = YOLO(model_path)  # Load the model using YOLO
+    print("selected model:", model_name)
 
     return {"message": f"Model {model_name} selected successfully", "model_name": model_name}
 
