@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 from starlette.middleware.sessions import SessionMiddleware
@@ -30,18 +30,22 @@ os.makedirs(MODELS_DIR, exist_ok=True)
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins="https://yolo-predict-tester-git-dev-alexyaroshuk.vercel.app",
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
 
-app.add_middleware(SessionMiddleware, secret_key=Config.SECRET_KEY)
+app.add_middleware(SessionMiddleware, secret_key=Config.SECRET_KEY, same_site='none')
 
 DEFAULT_MODEL_NAME = Config.DEFAULT_MODEL_NAME
 DEFAULT_MODEL_PATH = Config.DEFAULT_MODEL_PATH
 
 loaded_model = None
+loaded_model_path = None
+
+def get_request() -> Request:
+    return Request(scope={}, receive=None)
 
 
 def get_model_info(request: Request):
@@ -55,6 +59,7 @@ def get_model_info(request: Request):
         model_path = DEFAULT_MODEL_PATH
 
     return model_name, model_path
+
 
 
 def image_to_base64(image_path: str) -> str:
@@ -123,25 +128,32 @@ async def disk_content():
         raise HTTPException(
             status_code=500, detail=f"Unexpected error: {str(e)}")
         
-        
+
+
 @app.post("/select_model")
 async def select_model(request: Request, model_name: str):
-    global loaded_model
+    global loaded_model, loaded_model_path
     model_path = os.path.join(MODELS_DIR, model_name)
 
     # Check if the model file exists
     if not os.path.exists(model_path):
         raise HTTPException(status_code=404, detail="Model file not found")
 
-    # Store the model path in the session instead of the model itself
-    request.session['model_path'] = model_path
+    # Load the model
+    loaded_model = YOLO(model_path)
+    loaded_model_path = model_path
+
+    # Store the model path in the session
+    request.session['model_path'] = loaded_model_path
     request.session['model_name'] = model_name
 
-    # Store the model in the global variable
-    loaded_model = YOLO(model_path)  # Load the model using YOLO
-    print("selected model:", model_name)
+    print("Session data after select_model:", request.session)
+
+    print("model selected:", model_name)
 
     return {"message": f"Model {model_name} selected successfully", "model_name": model_name}
+
+
 
 
 @app.get("/project_structure")
@@ -170,15 +182,27 @@ async def list_models():
 
 @app.post("/predict")
 async def predict(request: Request, file: UploadFile = File(...)):
-    global loaded_model
+    global loaded_model, loaded_model_path
+
+    print("Session data before predict:", request.session)
+
     model_name, model_path = get_model_info(request)
 
     # If no model has been loaded or if the model has changed, load the model
-    if loaded_model is None or model_path != request.session.get('model_path'):
+    if loaded_model is None or loaded_model_path != model_path:
+        print(f"Loading model from: {model_path}")  # Debug print
         loaded_model = YOLO(model_path)
+        loaded_model_path = model_path
+        print(f"Loaded model from: {loaded_model_path}")  # Debug print
 
     # Use the loaded model for prediction
     model = loaded_model
+    
+    print("model to use for predict:", loaded_model_path)
+
+    # Rest of the code...
+
+    print("model_path from session:", model_path)
 
     # Read image file
     image = Image.open(io.BytesIO(await file.read()))
