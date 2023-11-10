@@ -36,7 +36,7 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-app.add_middleware(SessionMiddleware, secret_key=Config.SECRET_KEY, same_site='none')
+app.add_middleware(SessionMiddleware, secret_key=Config.SECRET_KEY, same_site='none', secure=False)
 
 DEFAULT_MODEL_NAME = Config.DEFAULT_MODEL_NAME
 DEFAULT_MODEL_PATH = Config.DEFAULT_MODEL_PATH
