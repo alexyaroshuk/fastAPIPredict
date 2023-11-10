@@ -30,7 +30,7 @@ os.makedirs(MODELS_DIR, exist_ok=True)
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://yolo-predict-tester-git-dev-alexyaroshuk.vercel.app/"],
+    allow_origins=["https://yolo-predict-tester-git-dev-alexyaroshuk.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
