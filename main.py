@@ -13,19 +13,25 @@ import base64
 from config import Config  # Import the Config class
 import logging
 import shutil
+from typing import Optional
+import uuid
+
 
 app = FastAPI()
 
 # Define the models directory
 MODELS_DIR = 'models'
 
-DISK_DIR = '/disk'
+DISK_MODELS_DIR = 'disk/models'
+DISK_DATA_DIR = 'disk/data'
 
 # Ensure the disk directory exists
-os.makedirs(DISK_DIR, exist_ok=True)
+os.makedirs(DISK_MODELS_DIR, exist_ok=True)
 
 # Ensure the models directory exists
 os.makedirs(MODELS_DIR, exist_ok=True)
+
+app.add_middleware(SessionMiddleware, secret_key="justsomerandomstringstrictlyfordevelopment", max_age=3600, same_site="none", https_only=True)
 
 # Add CORS middleware
 app.add_middleware(
@@ -36,24 +42,28 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-app.add_middleware(SessionMiddleware, secret_key=Config.SECRET_KEY)
+
 
 DEFAULT_MODEL_NAME = Config.DEFAULT_MODEL_NAME
 DEFAULT_MODEL_PATH = Config.DEFAULT_MODEL_PATH
 
+# Global dictionary to store model info
+model_info = {}
+
 loaded_model = None
 loaded_model_path = None
 
-def get_request() -> Request:
+async def get_request():
     return Request(scope={}, receive=None)
 
 
-def get_model_info(request: Request):
+def get_model_info(request: Request = Depends(get_request)):
     model_name = request.session.get('model_name', DEFAULT_MODEL_NAME)
     model_path = request.session.get('model_path', DEFAULT_MODEL_PATH)
 
     # Check if the model file exists
     if not os.path.exists(model_path):
+        print('files do not exist')
         # If the file does not exist, return the default model name and path
         model_name = DEFAULT_MODEL_NAME
         model_path = DEFAULT_MODEL_PATH
@@ -70,12 +80,14 @@ def image_to_base64(image_path: str) -> str:
 @app.get("/current_model")
 async def current_model(request: Request):
     model_name, _ = get_model_info(request)
+    print("Session data before current_model:", request.session)
     return {"model_used": model_name}
 
 
 @app.get("/download_model")
 async def download_model(request: Request):
     _, model_path = get_model_info(request)
+    print("Session data before download_model:", request.session)
     if not os.path.exists(model_path):
         raise HTTPException(status_code=404, detail="Model file not found")
     return FileResponse(model_path, filename=model_path)
@@ -83,14 +95,20 @@ async def download_model(request: Request):
 
 @app.post("/upload_model")
 async def upload_model(request: Request, model_file: UploadFile = File(...)):
+    
+        # Ensure the disk directory exists
+    os.makedirs(DISK_MODELS_DIR, exist_ok=True)
+    
     global loaded_model
     model_data = io.BytesIO(await model_file.read())
     model = torch.load(model_data)
     model_name = model_file.filename
 
+
+
     # Save the model to a file in the disk directory
     try:
-        disk_model_path = os.path.join(DISK_DIR, model_name)
+        disk_model_path = os.path.join(DISK_MODELS_DIR, model_name)
         torch.save(model, disk_model_path)
         logging.info(f"Model {model_name} saved to disk directory successfully")
     except Exception as e:
@@ -102,9 +120,16 @@ async def upload_model(request: Request, model_file: UploadFile = File(...)):
         torch.save(model, models_model_path)
         logging.info(f"Model {model_name} saved to models directory successfully")
 
+        # Copy the model file from the models directory to the disk directory
+        shutil.copy(models_model_path, disk_model_path)
+
         # Store the model path in the session instead of the model itself
         request.session['model_path'] = models_model_path
         request.session['model_name'] = model_name
+
+        # Store the model path and name in the global dictionary
+        session_id = request.session.get('id', str(uuid.uuid4()))
+        model_info[session_id] = {'model_path': models_model_path, 'model_name': model_name}
 
         # Store the model in the global variable
         loaded_model = YOLO(models_model_path)  # Load the model using YOLO
@@ -116,6 +141,9 @@ async def upload_model(request: Request, model_file: UploadFile = File(...)):
         logging.error(f"Exception when saving to models directory: {str(e)}")
         raise HTTPException(
             status_code=500, detail=f"Unexpected error: {str(e)}")
+
+    print("Session data after upload_model:", request.session)
+    print("Model info after upload_model:", model_info)
 
     return {"message": f"Model {model_name} loaded successfully", "model_name": model_name}
         
@@ -143,15 +171,19 @@ async def select_model(request: Request, model_name: str):
     loaded_model = YOLO(model_path)
     loaded_model_path = model_path
 
-    # Store the model path in the session
-    request.session['model_path'] = loaded_model_path
-    request.session['model_name'] = model_name
+    # Generate a unique session ID
+    session_id = str(uuid.uuid4())
+
+    # Store the session ID in the session
+    request.session['id'] = session_id
+
+    # Store the model path and name in the global dictionary
+    model_info[session_id] = {'model_path': loaded_model_path, 'model_name': model_name}
 
     print("Session data after select_model:", request.session)
+    print("Model info after select_model:", model_info)
 
-    print("model selected:", model_name)
-
-    return {"message": f"Model {model_name} selected successfully", "model_name": model_name}
+    return {"message": f"Model {model_name} selected successfully", "model_name": model_name, "session_id": session_id}
 
 
 
@@ -173,7 +205,7 @@ async def project_structure():
 @app.get("/models")
 async def list_models():
     try:
-        models = os.listdir(MODELS_DIR)
+        models = os.listdir(DISK_MODELS_DIR)
         return {"models": models}
     except Exception as e:
         raise HTTPException(
@@ -184,9 +216,19 @@ async def list_models():
 async def predict(request: Request, file: UploadFile = File(...)):
     global loaded_model, loaded_model_path
 
-    print("Session data before predict:", request.session)
+    # Retrieve the session ID from the session
+    session_id = request.session.get('id')
 
-    model_name, model_path = get_model_info(request)
+    # Check if the session ID is in model_info
+    if session_id not in model_info:
+        raise HTTPException(status_code=404, detail="Session ID not found")
+
+    # Retrieve the model path and name from the global dictionary
+    model_path, model_name = model_info[session_id].values()
+
+    print("Model info before predict:", model_info)
+    print("Retrieved model name and path:", model_name, model_path)
+
 
     # If no model has been loaded or if the model has changed, load the model
     if loaded_model is None or loaded_model_path != model_path:
