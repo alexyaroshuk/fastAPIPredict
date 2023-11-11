@@ -161,7 +161,7 @@ async def disk_content():
 @app.post("/select_model")
 async def select_model(request: Request, model_name: str):
     global loaded_model, loaded_model_path
-    model_path = os.path.join(MODELS_DIR, model_name)
+    model_path = os.path.join(DISK_MODELS_DIR, model_name)
 
     # Check if the model file exists
     if not os.path.exists(model_path):
