@@ -1,0 +1,1 @@
+yolov8n-seg.pt, epochs=21, dataset 2.0
