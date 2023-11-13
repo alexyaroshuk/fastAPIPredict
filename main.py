@@ -3,10 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 from starlette.middleware.sessions import SessionMiddleware
 from ultralytics import YOLO
-from PIL import Image
+from PIL import Image, UnidentifiedImageError, ImageDraw, ImageFont
 import io
 import numpy as np
 import torch
+import cv2
 import tempfile
 import os
 import base64
@@ -16,16 +17,22 @@ import shutil
 from typing import Optional
 import uuid
 from fastapi.staticfiles import StaticFiles
+from moviepy.editor import VideoFileClip
 
 # Define the directory for shared images
 SHARED_IMAGE_DIR = 'disk/shared_images'
 os.makedirs(SHARED_IMAGE_DIR, exist_ok=True)
 
+SHARED_THUMBNAILS_DIR = 'disk/shared_thumbnails'
+os.makedirs(SHARED_THUMBNAILS_DIR, exist_ok=True)
+
 app = FastAPI()
 
 # Mount the shared images directory as static files
-app.mount("/shared_images", StaticFiles(directory=SHARED_IMAGE_DIR), name="shared_images")
-
+app.mount("/shared_images", StaticFiles(directory=SHARED_IMAGE_DIR),
+          name="shared_images")
+app.mount("/shared_thumbnails",
+          StaticFiles(directory=SHARED_THUMBNAILS_DIR), name="shared_thumbnails")
 # Define the models directory
 MODELS_DIR = 'models'
 
@@ -42,7 +49,8 @@ os.makedirs(DISK_MODELS_DIR, exist_ok=True)
 # Ensure the models directory exists
 os.makedirs(MODELS_DIR, exist_ok=True)
 
-app.add_middleware(SessionMiddleware, secret_key=Config.SECRET_KEY, max_age=3600, same_site="none", https_only=True)
+app.add_middleware(SessionMiddleware, secret_key=Config.SECRET_KEY,
+                   max_age=3600, same_site="none", https_only=True)
 
 # Add CORS middleware
 app.add_middleware(
@@ -55,7 +63,8 @@ app.add_middleware(
 
 DEFAULT_MODEL_NAME = Config.DEFAULT_MODEL_NAME
 DEFAULT_MODEL_DIR = os.path.join(DISK_MODELS_DIR, DEFAULT_MODEL_NAME)
-DEFAULT_MODEL_PATH = os.path.join(DEFAULT_MODEL_DIR, f"{DEFAULT_MODEL_NAME}.pt")
+DEFAULT_MODEL_PATH = os.path.join(
+    DEFAULT_MODEL_DIR, f"{DEFAULT_MODEL_NAME}.pt")
 
 # Global dictionary to store model info
 model_info_dict = {}
@@ -63,18 +72,39 @@ model_info_dict = {}
 loaded_model = None
 loaded_model_path = None
 
+
+def generate_video_thumbnails():
+    files = os.listdir(SHARED_IMAGE_DIR)
+    video_files = [file for file in files if file.endswith('.mp4')]
+
+    for video_file in video_files:
+        thumbnail_path = os.path.join(
+            SHARED_THUMBNAILS_DIR, f'{video_file}_thumbnail.jpg')
+
+        # Check if thumbnail already exists
+        if not os.path.exists(thumbnail_path):
+            clip = VideoFileClip(os.path.join(SHARED_IMAGE_DIR, video_file))
+            clip.save_frame(thumbnail_path, t=0)  # save frame at 0 seconds
+
+
+# Call the function when the server starts
+generate_video_thumbnails()
+
+
 async def get_request():
     return Request(scope={}, receive=None)
+
 
 def get_or_set_session_id(request: Request):
     # If the session ID already exists, return it
     if 'id' in request.session:
         return request.session['id']
-    
+
     # Otherwise, generate a new session ID, store it in the session, and return it
     session_id = str(uuid.uuid4())
     request.session['id'] = session_id
     return session_id
+
 
 def get_model_info(request: Request = Depends(get_request)):
     model_name = request.session.get('model_name', DEFAULT_MODEL_NAME)
@@ -89,15 +119,26 @@ def get_model_info(request: Request = Depends(get_request)):
 
     return model_name, model_path
 
-def image_to_base64(image_path: str) -> str:
+
+# Convert the PIL Image to a base64 string
+def image_to_base64_for_video(pil_image):
+    byte_arr = io.BytesIO()
+    pil_image.save(byte_arr, format='JPEG')
+    encoded_image = base64.encodebytes(byte_arr.getvalue()).decode('ascii')
+    return encoded_image
+
+
+def image_to_base64_for_image(image_path: str) -> str:
     with open(image_path, "rb") as f:
         return base64.b64encode(f.read()).decode('utf-8')
+
 
 @app.get("/current_model")
 async def current_model(request: Request):
     model_name, _ = get_model_info(request)
     print("Session data before current_model:", request.session)
     return {"model_used": model_name}
+
 
 @app.get("/download_model")
 async def download_model(request: Request):
@@ -106,6 +147,7 @@ async def download_model(request: Request):
     if not os.path.exists(model_path):
         raise HTTPException(status_code=404, detail="Model file not found")
     return FileResponse(model_path, filename=model_path)
+
 
 def load_model(model_path: str):
     if not os.path.exists(model_path):
@@ -121,6 +163,7 @@ def load_model(model_path: str):
         raise HTTPException(
             status_code=500, detail=f"Unexpected error: {str(e)}")
 
+
 def save_model(model, model_path: str):
     try:
         torch.save(model, model_path)
@@ -130,12 +173,14 @@ def save_model(model, model_path: str):
         raise HTTPException(
             status_code=500, detail=f"Unexpected error: {str(e)}")
 
+
 @app.post("/upload_model")
 async def upload_model(request: Request, description: Optional[str] = Form(None), model_file: UploadFile = File(...), photo: Optional[UploadFile] = File(None)):
     global loaded_model
     model_data = io.BytesIO(await model_file.read())
     model = torch.load(model_data)
-    model_name, _ = os.path.splitext(model_file.filename)  # Remove the .pt extension
+    model_name, _ = os.path.splitext(
+        model_file.filename)  # Remove the .pt extension
     print("desc:", description)
 
     # Create a separate folder for the model
@@ -163,12 +208,14 @@ async def upload_model(request: Request, description: Optional[str] = Form(None)
 
     # Get or set the session ID
     session_id = get_or_set_session_id(request)
-    model_info_dict[session_id] = {'model_path': model_path, 'model_name': model_name}
+    model_info_dict[session_id] = {
+        'model_path': model_path, 'model_name': model_name}
 
     # Load the model using YOLO
     loaded_model = load_model(model_path)
 
     return {"message": f"Model {model_name} loaded successfully", "model_name": model_name}
+
 
 @app.get("/models")
 async def list_models():
@@ -180,11 +227,13 @@ async def list_models():
         raise HTTPException(
             status_code=500, detail=f"Unexpected error: {str(e)}")
 
+
 @app.get("/model_info/{model_name}")
 async def model_info(model_name: str):
     # Create the path to the model directory
     model_dir = os.path.join(DISK_MODELS_DIR, model_name)
-    model_dir = model_dir.replace("\\", "/")  # Replace backslashes with forward slashes
+    # Replace backslashes with forward slashes
+    model_dir = model_dir.replace("\\", "/")
     print("model dir", model_dir, model_name)
 
     # Check if the model directory exists
@@ -213,6 +262,7 @@ async def model_info(model_name: str):
 
     return {"model_path": model_path, "description": description, "photo_url": photo_url}
 
+
 @app.get("/models/{model_name}/photo.jpg")
 async def get_model_photo(model_name: str):
     # Construct the path to the photo
@@ -225,12 +275,15 @@ async def get_model_photo(model_name: str):
     # Return the photo file
     return FileResponse(photo_path, media_type="image/jpeg")
 
+
 @app.post("/select_model")
 async def select_model(request: Request, model_name: str):
     global loaded_model, loaded_model_path
-    model_name = model_name.replace("\\", "/")  # Replace backslashes with forward slashes
+    # Replace backslashes with forward slashes
+    model_name = model_name.replace("\\", "/")
     if model_name.startswith('models/'):
-        model_name = model_name[len('models/'):]  # Remove 'models/' from the start of model_name
+        # Remove 'models/' from the start of model_name
+        model_name = model_name[len('models/'):]
 
     # Check if the model file exists
     """ if not os.path.exists(model_path):
@@ -240,10 +293,10 @@ async def select_model(request: Request, model_name: str):
 
     model_path = os.path.join(DISK_MODELS_DIR, model_name, f"{model_name}.pt")
     # Construct the model path
-    print("path is" ,model_path)
+    print("path is", model_path)
 
     model_path = model_path.replace("\\", "/")
-    print("path is2" ,model_path)
+    print("path is2", model_path)
     # Load the model
     loaded_model = load_model(model_path)
     loaded_model_path = model_path
@@ -256,9 +309,11 @@ async def select_model(request: Request, model_name: str):
     request.session['model_name'] = model_name
 
     # Store the model path and name in the global dictionary
-    model_info_dict[session_id] = {'model_path': loaded_model_path, 'model_name': model_name}
+    model_info_dict[session_id] = {
+        'model_path': loaded_model_path, 'model_name': model_name}
 
     return {"message": f"Model {model_name} selected successfully", "model_name": model_name, "session_id": session_id}
+
 
 @app.get("/disk_content")
 async def disk_content():
@@ -268,8 +323,9 @@ async def disk_content():
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Unexpected error: {str(e)}")
-        
+
     return {"message": f"Model {model_name} selected successfully", "model_name": model_name, "session_id": session_id}
+
 
 @app.get("/project_structure")
 async def project_structure():
@@ -287,12 +343,31 @@ async def project_structure():
 @app.get("/shared_images")
 async def list_shared_images():
     try:
-        images = os.listdir(SHARED_IMAGE_DIR)
+        files = os.listdir(SHARED_IMAGE_DIR)
+        images = []
+        for file in files:
+            # Skip thumbnail images
+            if file.endswith('_thumbnail.jpg'):
+                continue
+            if file.endswith('.mp4'):
+                # If the file is a video, add the filename of the thumbnail image
+                thumbnail_filename = f'{file}_thumbnail.jpg'
+                images.append({
+                    'filename': file,
+                    'is_video': True,
+                    'thumbnail': thumbnail_filename
+                })
+            else:
+                # If the file is not a video, just add the filename
+                images.append({
+                    'filename': file,
+                    'is_video': False
+                })
         return {"images": images}
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Unexpected error: {str(e)}")
-        
+
 """ @app.get("/user_images")
 async def list_user_images(request: Request):
     # Get the session ID from the request
@@ -324,6 +399,7 @@ async def download_user_image(session_id: str, image_name: str):
         raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(image_path) """
 
+
 @app.get("/models")
 async def list_models():
     try:
@@ -332,6 +408,7 @@ async def list_models():
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Unexpected error: {str(e)}")
+
 
 @app.post("/predict")
 async def predict(request: Request, file: UploadFile = File(...)):
@@ -348,50 +425,201 @@ async def predict(request: Request, file: UploadFile = File(...)):
         loaded_model = load_model(model_path)
         loaded_model_path = model_path
 
-    # Use the loaded model for pre334eeeeeeeekolidiction
+    print("file name1", file)
+    print("file name", file.filename)
+
+    # Use the loaded model for prediction
     model = loaded_model
 
-    # Read image file
-    image = Image.open(io.BytesIO(await file.read()))
-
-    # Convert the image to RGB mode
-    image = image.convert("RGB")
+    """ # Use the loaded model for prediction
+    model = loaded_model
 
     # Create a unique directory for the user within the base directory
-    user_image_dir = os.path.join(USER_IMAGE_BASE_DIR, session_id)
-    os.makedirs(user_image_dir, exist_ok=True)
+    user_file_dir = os.path.join(USER_IMAGE_BASE_DIR, session_id)
+    os.makedirs(user_file_dir, exist_ok=True)
 
-    # Save the original image to the user's directory
-    user_image_path = os.path.join(user_image_dir, file.filename)
-    image.save(user_image_path)
+    # Save the original file to the user's directory
+    user_file_path = os.path.join(user_file_dir, file.filename)
+    with open(user_file_path, 'wb') as f:
+        f.write(await file.read())
 
-    # Run inference on the image
-    results = model(user_image_path)  # list of Results objects
+    print("file name1", file)
+    print("file name", file.filename)
+    print("file path", user_file_path)
 
-    # Get the annotated image from the results
-    annotated_image = results[0].plot(
-        font='Roboto-Regular.ttf', pil=True)
+    # Save the original file to the user's directory
+    user_file_path = os.path.join(user_file_dir, file.filename)
+    with open(user_file_path, 'wb') as f:
+        f.write(await file.read()) """
 
-    # Convert the numpy array to a PIL Image
-    annotated_image = Image.fromarray(annotated_image)
+    # Check if the file is a video
+    if file.filename.endswith('.mp4'):
+        print("file is video")
 
-    # Convert the image to RGB mode
-    annotated_image = annotated_image.convert("RGB")
+        """ # Create a unique directory for the user within the base directory
+        user_file_dir = os.path.join(USER_IMAGE_BASE_DIR, session_id)
+        os.makedirs(user_file_dir, exist_ok=True)
 
-    # Create a unique directory for the annotated images within the base directory
-    annotated_image_dir = os.path.join(USER_IMAGE_BASE_DIR, session_id, 'annotated_images')
-    os.makedirs(annotated_image_dir, exist_ok=True)
+        # Save the original file to the user's directory
+        user_file_path = os.path.join(user_file_dir, file.filename)
+        with open(user_file_path, 'wb') as f:
+            f.write(await file.read()) """
 
-    # Save the annotated image to the annotated images directory
-    annotated_image_path = os.path.join(annotated_image_dir, f"annotated_{file.filename}")
-    annotated_image.save(annotated_image_path)
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            # Write the video data to the temporary file
+            temp_file.write(await file.read())
 
-    # Read the output image and return it
-    image_base64 = image_to_base64(annotated_image_path)
+        # Open the video file
+        video = cv2.VideoCapture(temp_file.name)
 
-    # Convert each Results object to a dictionary
-    results_json = [result.tojson() for result in results]
+        # Get the frames per second (fps) of the video
+        fps = video.get(cv2.CAP_PROP_FPS)
 
-    print("used model:", model_name)
+        frame_count = 0
+        results_json = []
 
-    return {"image": image_base64, "model_used": model_name, "results": results_json}
+        while video.isOpened():
+            ret, frame = video.read()
+            if not ret:
+                break
+
+            # Process every 'fps' frames (i.e., every second)
+            if frame_count % fps == 0:
+
+                # Create a temporary directory
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    # Save the frame as an image
+                    frame_path = os.path.join(
+                        temp_dir, f"frame_{frame_count}.jpg")
+                    cv2.imwrite(frame_path, frame)
+
+                    # Calculate the time in seconds
+                    time_in_seconds = frame_count // fps
+
+                    # Run inference on the frame
+                    results = model(frame_path)  # list of Results objects
+
+                    # Get the annotated image from the results
+                    annotated_image = results[0].plot(
+                        font='Roboto-Regular.ttf', pil=True)
+
+                    # Convert the numpy array to a PIL Image
+                    annotated_image = Image.fromarray(annotated_image)
+
+                    # Calculate the height of the extra space and the font size
+                    extra_space_height = int(0.04 * annotated_image.height)
+                    font_size = extra_space_height
+
+                   # Create a new image with extra space at the top
+                    new_image = Image.new(
+                        'RGB', (annotated_image.width, annotated_image.height + extra_space_height), 'black')
+
+                    # Paste the original image onto the new image
+                    new_image.paste(annotated_image, (0, extra_space_height))
+
+                    # Create a draw object
+                    draw = ImageDraw.Draw(new_image)
+
+                    # Define the text and position
+                    text = f"Frame: {frame_count} ({time_in_seconds} seconds)"
+
+                    # Define the font (you might need to specify the path to the font file)
+                    font = ImageFont.truetype("arial.ttf", font_size)
+
+                    # Calculate the width of the text
+                    text_width, _ = draw.textsize(text, font=font)
+
+                    # Calculate the position of the text to be centered
+                    position = ((new_image.width - text_width) // 2, 0)
+
+                    # Draw the text on the new image
+                    draw.text(position, text, fill="white", font=font)
+
+                    # Convert the image to RGB mode
+                    annotated_image = new_image.convert("RGB")
+
+                    annotated_image_base64 = image_to_base64_for_video(
+                        new_image)
+
+                    # Save the annotated image to the user's directory
+                    annotated_image_path = os.path.join(
+                        temp_dir, f"annotated_frame_{frame_count}.jpg")
+                    annotated_image.save(annotated_image_path)
+
+                    # Convert each Results object to a dictionary
+                    results_json.append({
+                        'frame': frame_count,
+                        'time_in_seconds': time_in_seconds,
+                        'results': [result.tojson() for result in results],
+                        'annotated_image': annotated_image_base64,
+                    })
+
+            frame_count += 1
+
+        video.release()
+
+        # Return the results
+        return {
+            'type': 'video',
+            'model_used': model_name,
+            'results': results_json,
+        }
+
+    else:
+
+        print("file name1", file)
+        print("file name", file.filename)
+
+        # Read image file
+        image = Image.open(io.BytesIO(await file.read()))
+
+        # Convert the image to RGB mode
+        image = image.convert("RGB")
+
+        """ # Create a unique directory for the user within the base directory
+        user_image_dir = os.path.join(USER_IMAGE_BASE_DIR, session_id)
+        os.makedirs(user_image_dir, exist_ok=True)
+
+        # Save the original image to the user's directory
+        user_image_path = os.path.join(user_image_dir, file.filename) """
+
+        # Create a temporary file
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Save the uploaded file to the temporary directory
+            temp_image_path = os.path.join(temp_dir, file.filename)
+
+            image.save(temp_image_path)
+
+            # Run inference on the image
+            results = model(temp_image_path)  # list of Results objects
+
+            # Get the annotated image from the results
+            annotated_image = results[0].plot(
+                font='Roboto-Regular.ttf', pil=True)
+
+            # Convert the numpy array to a PIL Image
+            annotated_image = Image.fromarray(annotated_image)
+
+            # Convert the image to RGB mode
+            annotated_image = annotated_image.convert("RGB")
+
+            # Create a unique directory for the annotated images within the base directory
+            annotated_image_dir = os.path.join(
+                USER_IMAGE_BASE_DIR, session_id, 'annotated_images')
+            os.makedirs(annotated_image_dir, exist_ok=True)
+
+            # Save the annotated image to the annotated images directory
+            annotated_image_path = os.path.join(
+                annotated_image_dir, f"annotated_{file.filename}")
+            annotated_image.save(annotated_image_path)
+
+            # Read the output image and return it
+            image_base64 = image_to_base64_for_image(annotated_image_path)
+
+            # Convert each Results object to a dictionary
+            results_json = [result.tojson() for result in results]
+
+            print("used model:", model_name)
+
+            return {'type': 'image', "image": image_base64, "model_used": model_name, "results": results_json}
