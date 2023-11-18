@@ -10,3 +10,4 @@ starlette
 itsdangerous
 opencv-python-headless
 moviepy
+shapely
