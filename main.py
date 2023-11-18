@@ -61,7 +61,7 @@ app.add_middleware(SessionMiddleware, secret_key=Config.SECRET_KEY,
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=Config.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
