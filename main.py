@@ -1,23 +1,28 @@
+# test
+import io
+import tempfile
+import os
+import base64
+from typing import Optional
+import uuid
+import logging
+import torch
+import cv2
+from shapely.geometry import Polygon
+from ultralytics import YOLO
+from PIL import Image, ImageDraw, ImageFont
+from fastapi.staticfiles import StaticFiles
+from moviepy.editor import VideoFileClip
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Depends, Form
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 from starlette.middleware.sessions import SessionMiddleware
-from ultralytics import YOLO
-from PIL import Image, UnidentifiedImageError, ImageDraw, ImageFont
-import io
-import numpy as np
-import torch
-import cv2
-import tempfile
-import os
-import base64
-from config import Config  # Import the Config class
-import logging
-import shutil
-from typing import Optional
-import uuid
-from fastapi.staticfiles import StaticFiles
-from moviepy.editor import VideoFileClip
+import json
+from collections import defaultdict
+from config import Config
+
+# Import the Config class
+
 
 # Define the directory for shared images
 SHARED_IMAGE_DIR = 'disk/shared_images'
@@ -36,6 +41,7 @@ app.mount("/shared_thumbnails",
 # Define the models directory
 MODELS_DIR = 'models'
 
+DISK_DIR = './disk'
 DISK_MODELS_DIR = 'disk/models'
 DISK_USERDATA_DIR = 'disk/userdata'
 
@@ -55,7 +61,7 @@ app.add_middleware(SessionMiddleware, secret_key=Config.SECRET_KEY,
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=Config.CORS_ORIGINS,
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
@@ -71,6 +77,8 @@ model_info_dict = {}
 
 loaded_model = None
 loaded_model_path = None
+
+# Generate thumbnails for video files
 
 
 def generate_video_thumbnails():
@@ -217,17 +225,6 @@ async def upload_model(request: Request, description: Optional[str] = Form(None)
     return {"message": f"Model {model_name} loaded successfully", "model_name": model_name}
 
 
-@app.get("/models")
-async def list_models():
-    try:
-        model_dirs = os.listdir(DISK_MODELS_DIR)
-        print(model_dirs)
-        return {"models": model_dirs}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Unexpected error: {str(e)}")
-
-
 @app.get("/model_info/{model_name}")
 async def model_info(model_name: str):
     # Create the path to the model directory
@@ -284,12 +281,6 @@ async def select_model(request: Request, model_name: str):
     if model_name.startswith('models/'):
         # Remove 'models/' from the start of model_name
         model_name = model_name[len('models/'):]
-
-    # Check if the model file exists
-    """ if not os.path.exists(model_path):
-        print("if block")
-        # If the model file doesn't exist, try using model_name as a relative path
-        model_path = f"{model_name}.pt" """
 
     model_path = os.path.join(DISK_MODELS_DIR, model_name, f"{model_name}.pt")
     # Construct the model path
@@ -368,37 +359,6 @@ async def list_shared_images():
         raise HTTPException(
             status_code=500, detail=f"Unexpected error: {str(e)}")
 
-""" @app.get("/user_images")
-async def list_user_images(request: Request):
-    # Get the session ID from the request
-    session_id = request.session.get('id')
-
-    # If the session ID does not exist, return an error
-    if session_id is None:
-        raise HTTPException(status_code=400, detail="Session ID not found")
-
-    # Create a unique directory for the user within the base directory
-    user_image_dir = os.path.join(USER_IMAGE_BASE_DIR, session_id)
-
-    # Check if the user's directory exists
-    if not os.path.exists(user_image_dir):
-        return {"images": []}
-
-    try:
-        images = os.listdir(user_image_dir)
-        return {"images": images}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Unexpected error: {str(e)}")
-        
-@app.get("/user_images/{session_id}/{image_name}")
-async def download_user_image(session_id: str, image_name: str):
-    user_image_dir = os.path.join(USER_IMAGE_BASE_DIR, session_id)
-    image_path = os.path.join(user_image_dir, image_name)
-    if not os.path.exists(image_path):
-        raise HTTPException(status_code=404, detail="Image not found")
-    return FileResponse(image_path) """
-
 
 @app.get("/models")
 async def list_models():
@@ -411,7 +371,7 @@ async def list_models():
 
 
 @app.post("/predict")
-async def predict(request: Request, file: UploadFile = File(...)):
+async def predict(request: Request, file: Optional[UploadFile] = File(None), mediaIndex: Optional[int] = Form(None)):
     global loaded_model, loaded_model_path
 
     # Get or set the session ID
@@ -425,45 +385,27 @@ async def predict(request: Request, file: UploadFile = File(...)):
         loaded_model = load_model(model_path)
         loaded_model_path = model_path
 
-    print("file name1", file)
-    print("file name", file.filename)
+    print("index", mediaIndex)
+    # If mediaIndex is provided, use the file at that index in the SHARED_IMAGE_DIR directory
+    if mediaIndex is not None:
+        files = os.listdir(SHARED_IMAGE_DIR)
+        if mediaIndex < 0 or mediaIndex >= len(files):
+            raise HTTPException(status_code=400, detail="Invalid mediaIndex")
+        file_path = os.path.join(SHARED_IMAGE_DIR, files[mediaIndex])
+        with open(file_path, "rb") as f:
+            contents = f.read()
+        file = UploadFile(
+            filename=files[mediaIndex], file=io.BytesIO(contents))
+        filename = files[mediaIndex]
+    elif file is not None:
+        filename = file.filename
 
     # Use the loaded model for prediction
     model = loaded_model
 
-    """ # Use the loaded model for prediction
-    model = loaded_model
-
-    # Create a unique directory for the user within the base directory
-    user_file_dir = os.path.join(USER_IMAGE_BASE_DIR, session_id)
-    os.makedirs(user_file_dir, exist_ok=True)
-
-    # Save the original file to the user's directory
-    user_file_path = os.path.join(user_file_dir, file.filename)
-    with open(user_file_path, 'wb') as f:
-        f.write(await file.read())
-
-    print("file name1", file)
-    print("file name", file.filename)
-    print("file path", user_file_path)
-
-    # Save the original file to the user's directory
-    user_file_path = os.path.join(user_file_dir, file.filename)
-    with open(user_file_path, 'wb') as f:
-        f.write(await file.read()) """
-
     # Check if the file is a video
     if file.filename.endswith('.mp4'):
         print("file is video")
-
-        """ # Create a unique directory for the user within the base directory
-        user_file_dir = os.path.join(USER_IMAGE_BASE_DIR, session_id)
-        os.makedirs(user_file_dir, exist_ok=True)
-
-        # Save the original file to the user's directory
-        user_file_path = os.path.join(user_file_dir, file.filename)
-        with open(user_file_path, 'wb') as f:
-            f.write(await file.read()) """
 
         # Create a temporary file
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
@@ -478,14 +420,25 @@ async def predict(request: Request, file: UploadFile = File(...)):
 
         frame_count = 0
         results_json = []
+        MAX_FRAMES = 4  # Maximum number of frames to process
+        all_results = []  # List to store results for all frames
+        processed_results = None  # Initialize processed_results
+        annotated_images = []  # List to store annotated images for all frames
+        total_instances = 0
+        total_classes = set()
+        total_area_by_type = defaultdict(int)
+        total_area = 0
+
+        # Get the total area of a frame (all frames have the same size)
+        frame_area = None
 
         while video.isOpened():
             ret, frame = video.read()
             if not ret:
                 break
 
-            # Process every 'fps' frames (i.e., every second)
-            if frame_count % fps == 0:
+            # Process every 'fps' frames (i.e., every 2 seconds)
+            if frame_count % (fps * 2) == 0:
 
                 # Create a temporary directory
                 with tempfile.TemporaryDirectory() as temp_dir:
@@ -547,23 +500,64 @@ async def predict(request: Request, file: UploadFile = File(...)):
                         temp_dir, f"annotated_frame_{frame_count}.jpg")
                     annotated_image.save(annotated_image_path)
 
+                    annotated_images.append(annotated_image_base64)
+
+                    # Get the size of the image
+                    image_size = frame.shape[1], frame.shape[0]
+
+                    # Get the total area of a frame (all frames have the same size)
+                    if frame_area is None:
+                        frame_area = frame.shape[0] * frame.shape[1]
+
+                    # Add results to all_results list
+                    all_results.extend(results)
+
                     # Convert each Results object to a dictionary
-                    results_json.append({
-                        'frame': frame_count,
-                        'time_in_seconds': time_in_seconds,
-                        'results': [result.tojson() for result in results],
-                        'annotated_image': annotated_image_base64,
-                    })
+
+                    # Process the results for this frame
+                    processed_results = process_results(results, image_size)
+
+                    # Update the summary data
+                    total_instances += len(processed_results['instances'])
+                    total_classes.update(processed_results['Classes'])
+                    for class_name, area_info in processed_results['Area by type'].items():
+                        area = float(area_info['area'])
+                        total_area_by_type[class_name] += area
+
+                # Append the results for this frame to results_json
+                results_json.append({
+
+                    'frame_number': frame_count,
+                    'time_in_seconds': time_in_seconds,
+                    'annotated_image': annotated_image_base64,
+
+                    'detection_results': processed_results,
+
+                })
 
             frame_count += 1
 
         video.release()
+        print(f"Number of frames processed: {len(results_json)}")
 
+        # Calculate the total area distribution
+        total_area_by_type = {
+            k: {'area': round(v, 1)} for k, v in total_area_by_type.items()}
+
+        # Calculate the average percentage area distribution
+        average_percentage_area_by_type = {k: {
+            'percentage_area': f"{round((v['area'] / (frame_area * len(results_json))) * 100, 2)}%"} for k, v in total_area_by_type.items()}
         # Return the results
         return {
             'type': 'video',
             'model_used': model_name,
-            'results': results_json,
+            'frames': results_json,
+            'detection_summary': {
+                'Total # of instances': total_instances,
+                'Total # of classes': len(total_classes),
+                'Total area by type': total_area_by_type,
+                'Average % area by type': average_percentage_area_by_type,
+            },
         }
 
     else:
@@ -573,21 +567,13 @@ async def predict(request: Request, file: UploadFile = File(...)):
 
         # Read image file
         image = Image.open(io.BytesIO(await file.read()))
-
-        # Convert the image to RGB mode
-        image = image.convert("RGB")
-
-        """ # Create a unique directory for the user within the base directory
-        user_image_dir = os.path.join(USER_IMAGE_BASE_DIR, session_id)
-        os.makedirs(user_image_dir, exist_ok=True)
-
-        # Save the original image to the user's directory
-        user_image_path = os.path.join(user_image_dir, file.filename) """
-
         # Create a temporary file
         with tempfile.TemporaryDirectory() as temp_dir:
             # Save the uploaded file to the temporary directory
             temp_image_path = os.path.join(temp_dir, file.filename)
+
+            # Convert the image to RGB mode
+            image = image.convert("RGB")
 
             image.save(temp_image_path)
 
@@ -617,9 +603,68 @@ async def predict(request: Request, file: UploadFile = File(...)):
             # Read the output image and return it
             image_base64 = image_to_base64_for_image(annotated_image_path)
 
-            # Convert each Results object to a dictionary
-            results_json = [result.tojson() for result in results]
-
             print("used model:", model_name)
 
-            return {'type': 'image', "image": image_base64, "model_used": model_name, "results": results_json}
+            # Convert each Results object to a dictionary
+            results_json = [json.loads(result.tojson())[0]
+                            for result in results]
+
+            # Get the size of the image
+            image_size = image.size
+            print(image_size)
+
+            # Process the results
+            processed_results = process_results(results, image_size)
+
+            return {'type': 'image', "image": image_base64, "model_used": model_name, "detection_results": processed_results}
+
+
+def calculate_area(segments, image_size):
+    polygon = Polygon(zip(segments['x'], segments['y']))
+    area = polygon.area
+    total_area = image_size[0] * image_size[1]
+    return round(area, 1), f"{round((area / total_area) * 100, 2)}%"
+
+
+def process_results(results, image_size):
+    instance_counter = defaultdict(int)
+    total_areas = defaultdict(int)
+    total_objects = 0
+    unique_classes = set()
+    instances = []
+
+    for result in results:
+        result_dicts = json.loads(result.tojson())
+        for result_dict in result_dicts:
+            total_objects += 1
+            class_name = result_dict['name']
+            unique_classes.add(class_name)
+            instance_counter[class_name] += 1
+            area, area_percentage = calculate_area(
+                result_dict['segments'], image_size)
+            total_areas[class_name] += area
+            instances.append({
+                'class_name': class_name,
+                'area': area,
+                'area_percentage': area_percentage
+            })
+
+    # Append instance number to class name if there are multiple instances
+    for instance in instances:
+        class_name = instance['class_name']
+        if instance_counter[class_name] > 1:
+            instance['name'] = f"{class_name}_{instance_counter[class_name]}"
+            instance_counter[class_name] -= 1
+        else:
+            instance['name'] = f"{class_name}_1"
+        del instance['class_name']
+
+    total_image_area = image_size[0] * image_size[1]
+
+    return {
+        'Total # of instances': total_objects,
+        'Total # of classes': len(unique_classes),
+        'Classes': list(unique_classes),
+        'Area by type': {k: {'area': round(v, 1), 'area_percentage': f"{round((v / total_image_area) * 100, 1)}%"} for k, v in total_areas.items()},
+        'instances': instances
+    }
