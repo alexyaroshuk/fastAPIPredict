@@ -6,6 +6,7 @@ import base64
 from typing import Optional
 import uuid
 import logging
+import gc
 import torch
 import cv2
 from shapely.geometry import Polygon
@@ -440,6 +441,9 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
             # Process every 'fps' frames (i.e., every 2 seconds)
             if frame_count % (fps * 2) == 0:
 
+                # Reduce the resolution of the frame
+                frame = cv2.resize(frame, (640, 480))
+
                 # Create a temporary directory
                 with tempfile.TemporaryDirectory() as temp_dir:
                     # Save the frame as an image
@@ -536,7 +540,12 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
 
                     'detection_results': processed_results,
 
+
                 })
+
+                # Delete the frame to free up memory
+                del frame
+                gc.collect()
 
             frame_count += 1
 
