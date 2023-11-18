@@ -478,7 +478,10 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
                     text = f"Frame: {frame_count} ({time_in_seconds} seconds)"
 
                     # Define the font (you might need to specify the path to the font file)
-                    font = ImageFont.truetype("arial.ttf", font_size)
+                    # replace with the actual path to your Roboto-Regular.ttf file
+                    font_path = 'Roboto-Regular.ttf'
+
+                    font = ImageFont.truetype(font_path, font_size)
 
                     # Calculate the width of the text
                     text_width, _ = draw.textsize(text, font=font)
