@@ -16,14 +16,6 @@ This project is a FastAPI application that provides a RESTful API for managing a
 
 - **CORS**: The application uses CORS middleware to handle Cross-Origin Resource Sharing.
 
-## Code Structure
-
-The code is structured as a single Python script (`main.py`). The script starts by importing the necessary modules and defining some global variables and directories. It then defines the FastAPI application and mounts the shared images and thumbnails directories as static files.
-
-The script then defines a number of utility functions for managing models and running predictions. These functions include `load_model`, `save_model`, `get_model_info`, `image_to_base64_for_video`                                                                                                                                                                                                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa```````````````````````````````````dseeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeoiyut66666666666666666666uuuuuuuuuuuuuuuuuuuuuuuuuuuuuru``, `image_to_base64_for_image`, and `process_results`.
-
-The script then defines the API endpoints. These include endpoints for uploading, downloading, and selecting models, running predictions, and managing and viewing shared media.
-
 ## Usage
 
 To use the application, start the FastAPI server and send HTTP requests to the API endpoints. The endpoints accept and return data in JSON format. Some endpoints also accept file uploads in multipart/form-data format.
