@@ -617,10 +617,6 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
 
             print("used model:", model_name)
 
-            # Convert each Results object to a dictionary
-            results_json = [json.loads(result.tojson())[0]
-                            for result in results]
-
             # Get the size of the image
             image_size = image.size
             print(image_size)
