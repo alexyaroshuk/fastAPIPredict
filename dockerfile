@@ -15,6 +15,10 @@ RUN apt-get update && apt-get install -y \
 # Add the current directory contents into the container at /app
 ADD . /
 
+# Add the /disk and /model directories
+ADD disk /disk
+ADD models /models
+
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
