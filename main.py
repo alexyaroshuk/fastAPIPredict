@@ -316,7 +316,7 @@ async def select_model(request: Request, model_name: str):
     return {"message": f"Model {model_name} selected successfully", "model_name": model_name, "session_id": session_id}
 
 
-@app.get("/disk_content")
+""" @app.get("/disk_content")
 async def disk_content():
     try:
         content = os.listdir(DISK_DIR)
@@ -325,7 +325,7 @@ async def disk_content():
         raise HTTPException(
             status_code=500, detail=f"Unexpected error: {str(e)}")
 
-    return {"message": f"Model {model_name} selected successfully", "model_name": model_name, "session_id": session_id}
+    return {"message": f"Model {model_name} selected successfully", "model_name": model_name, "session_id": session_id} """
 
 
 @app.get("/project_structure")
@@ -560,6 +560,7 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
 
         video.release()
         print(f"Number of frames processed: {len(results_json)}")
+        del results
 
         # Calculate the total area distribution
         total_area_by_type = {
@@ -632,6 +633,7 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
 
             # Process the results
             processed_results = process_results(results, image_size)
+            del results
 
             return {'type': 'image', "image": image_base64, "model_used": model_name, "detection_results": processed_results}
 
