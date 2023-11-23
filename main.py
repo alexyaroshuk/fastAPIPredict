@@ -92,7 +92,6 @@ loaded_model_path = None
 # Generate thumbnails for video files
 
 
-
 def generate_video_thumbnails():
     files = os.listdir(SHARED_IMAGE_DIR)
     video_files = [file for file in files if file.endswith('.mp4')]
@@ -107,6 +106,8 @@ def generate_video_thumbnails():
             clip.save_frame(thumbnail_path, t=0)  # save frame at 0 seconds
 
 # Get the memory usage in percentage
+
+
 def get_memory_usage():
     return psutil.virtual_memory().percent
 
@@ -392,7 +393,7 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
 
     # Get or set the session ID
     session_id = get_or_set_session_id(request)
-    
+
     print(f"Memory usage initial: {get_memory_usage()}%")
 
     # Retrieve the model name and path from the session
@@ -574,8 +575,7 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
         # Calculate the total area distribution
         total_area_by_type = {
             k: {'area': round(v, 1)} for k, v in total_area_by_type.items()}
-        
-        
+
         print(f"Memory usage after video processing: {get_memory_usage()}%")
         # Calculate the average percentage area distribution
         average_percentage_area_by_type = {k: {
@@ -642,7 +642,7 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
             image_size = image.size
             print(image_size)
 
-print(f"Memory usage after img processing: {get_memory_usage()}%")
+            print(f"Memory usage after img processing: {get_memory_usage()}%")
 
             # Process the results
             processed_results = process_results(results, image_size)
