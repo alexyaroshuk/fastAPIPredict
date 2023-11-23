@@ -15,6 +15,7 @@ from PIL import Image, ImageDraw, ImageFont
 from fastapi.staticfiles import StaticFiles
 from moviepy.editor import VideoFileClip
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Depends, Form
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 from starlette.middleware.sessions import SessionMiddleware
@@ -67,6 +68,14 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
+
+
+@app.middleware("http")
+async def catch_memory_error(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except MemoryError:
+        return JSONResponse(status_code=500, content={"error": "Insufficient memory to complete the operation"})
 
 DEFAULT_MODEL_NAME = Config.DEFAULT_MODEL_NAME
 DEFAULT_MODEL_DIR = os.path.join(DISK_MODELS_DIR, DEFAULT_MODEL_NAME)
