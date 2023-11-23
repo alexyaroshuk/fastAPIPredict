@@ -1,7 +1,7 @@
 fastapi
 uvicorn
 ultralytics
-Pillow
+Pillow==9.5.0
 torch
 numpy
 python-multipart
