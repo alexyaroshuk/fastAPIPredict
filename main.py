@@ -22,6 +22,7 @@ from starlette.middleware.sessions import SessionMiddleware
 import json
 from collections import defaultdict
 from config import Config
+import psutil
 
 # Import the Config class
 
@@ -91,6 +92,7 @@ loaded_model_path = None
 # Generate thumbnails for video files
 
 
+
 def generate_video_thumbnails():
     files = os.listdir(SHARED_IMAGE_DIR)
     video_files = [file for file in files if file.endswith('.mp4')]
@@ -103,6 +105,10 @@ def generate_video_thumbnails():
         if not os.path.exists(thumbnail_path):
             clip = VideoFileClip(os.path.join(SHARED_IMAGE_DIR, video_file))
             clip.save_frame(thumbnail_path, t=0)  # save frame at 0 seconds
+
+# Get the memory usage in percentage
+def get_memory_usage():
+    return psutil.virtual_memory().percent
 
 
 # Call the function when the server starts
@@ -386,6 +392,8 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
 
     # Get or set the session ID
     session_id = get_or_set_session_id(request)
+    
+    print(f"Memory usage initial: {get_memory_usage()}%")
 
     # Retrieve the model name and path from the session
     model_name, model_path = get_model_info(request)
@@ -561,11 +569,14 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
         video.release()
         print(f"Number of frames processed: {len(results_json)}")
         del results
+        gc.collect()
 
         # Calculate the total area distribution
         total_area_by_type = {
             k: {'area': round(v, 1)} for k, v in total_area_by_type.items()}
-
+        
+        
+print(f"Memory usage after video processing: {get_memory_usage()}%")
         # Calculate the average percentage area distribution
         average_percentage_area_by_type = {k: {
             'percentage_area': f"{round((v['area'] / (frame_area * len(results_json))) * 100, 2)}%"} for k, v in total_area_by_type.items()}
@@ -630,6 +641,8 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
             # Get the size of the image
             image_size = image.size
             print(image_size)
+
+print(f"Memory usage after img processing: {get_memory_usage()}%")
 
             # Process the results
             processed_results = process_results(results, image_size)

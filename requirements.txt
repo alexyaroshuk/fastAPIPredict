@@ -3,6 +3,7 @@ uvicorn
 ultralytics
 Pillow==9.5.0
 torch
+psutil==5.9.4
 numpy
 python-multipart
 dill
