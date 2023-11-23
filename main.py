@@ -576,7 +576,7 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
             k: {'area': round(v, 1)} for k, v in total_area_by_type.items()}
         
         
-print(f"Memory usage after video processing: {get_memory_usage()}%")
+        print(f"Memory usage after video processing: {get_memory_usage()}%")
         # Calculate the average percentage area distribution
         average_percentage_area_by_type = {k: {
             'percentage_area': f"{round((v['area'] / (frame_area * len(results_json))) * 100, 2)}%"} for k, v in total_area_by_type.items()}
