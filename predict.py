@@ -108,6 +108,11 @@ def predict_video(video_path: str):
                 frames_dir, f"frame_{frame_count}.jpg")
             cv2.imwrite(frame_path, frame)
 
+            # Save the annotated image to the frames directory
+            annotated_image_path = os.path.join(
+                frames_dir, f"annotated_frame_{frame_count}.jpg")
+            annotated_image.save(annotated_image_path)
+
             # Run inference on the frame
             results = model(frame_path)  # list of Results objects
 
