@@ -99,10 +99,6 @@ def predict_video(video_path: str):
 
         # Process every 'fps' frames (i.e., every 2 seconds)
         if frame_count % fps == 0:
-
-            # Convert the image to RGB mode
-            annotated_image = new_image.convert("RGB")
-
             # Reduce the resolution of the frame
             frame = cv2.resize(frame, (640, 480))
 
@@ -111,13 +107,23 @@ def predict_video(video_path: str):
                 frames_dir, f"frame_{frame_count}.jpg")
             cv2.imwrite(frame_path, frame)
 
+            # Run inference on the frame
+            results = model(frame_path)  # list of Results objects
+
+            # Get the annotated image from the results
+            annotated_image = results[0].plot(
+                font='Roboto-Regular.ttf', pil=True)
+
+            # Convert the numpy array to a PIL Image
+            annotated_image = Image.fromarray(annotated_image)
+
+            # Convert the image to RGB mode
+            annotated_image = annotated_image.convert("RGB")
+
             # Save the annotated image to the frames directory
             annotated_image_path = os.path.join(
                 frames_dir, f"annotated_frame_{frame_count}.jpg")
             annotated_image.save(annotated_image_path)
-
-            # Run inference on the frame
-            results = model(frame_path)  # list of Results objects
 
             # Get the size of the image
             image_size = frame.shape[1], frame.shape[0]
