@@ -34,12 +34,12 @@ def load_model_if_needed():
         loaded_model = load_model(model_path)
         loaded_model_path = model_path
 
-    return loaded_model
+    return loaded_model, model_name
 
 
 def predict_image(image_path: str):
     # Use the loaded model for prediction
-    model = load_model_if_needed()
+    model, model_name = load_model_if_needed()
 
     # Read image file
     image = Image.open(image_path)
