@@ -14,6 +14,7 @@ import cv2
 loaded_model = None
 loaded_model_path = None
 
+
 def load_model_if_needed():
     global loaded_model, loaded_model_path
 
@@ -97,7 +98,7 @@ def predict_video(video_path: str):
             break
 
         # Process every 'fps' frames (i.e., every 2 seconds)
-         if frame_count % fps == 0:
+        if frame_count % fps == 0:
 
             # Reduce the resolution of the frame
             frame = cv2.resize(frame, (640, 480))
