@@ -100,6 +100,9 @@ def predict_video(video_path: str):
         # Process every 'fps' frames (i.e., every 2 seconds)
         if frame_count % fps == 0:
 
+            # Convert the image to RGB mode
+            annotated_image = new_image.convert("RGB")
+
             # Reduce the resolution of the frame
             frame = cv2.resize(frame, (640, 480))
 
