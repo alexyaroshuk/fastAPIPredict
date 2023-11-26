@@ -1,3 +1,4 @@
+import glob
 import gc
 from config import Config
 import os
@@ -10,7 +11,7 @@ import base64
 from ultralytics import YOLO
 import pandas as pd
 import cv2
-
+import imageio
 loaded_model = None
 loaded_model_path = None
 
@@ -88,14 +89,19 @@ def predict_video(video_path: str):
     frame_count = 0
     all_results = []  # List to store results for all frames
 
-    # Create a directory for storing the frames
+    # Create directories for storing the frames and annotated images
     frames_dir = 'frames'
+    annotated_frames_dir = 'annotated_frames'
     os.makedirs(frames_dir, exist_ok=True)
+    os.makedirs(annotated_frames_dir, exist_ok=True)
 
     while video.isOpened():
         ret, frame = video.read()
         if not ret:
             break
+
+        # Calculate the time in seconds
+        time_in_seconds = frame_count // fps
 
         # Process every 'fps' frames (i.e., every 2 seconds)
         if frame_count % fps == 0:
@@ -120,9 +126,36 @@ def predict_video(video_path: str):
             # Convert the image to RGB mode
             annotated_image = annotated_image.convert("RGB")
 
-            # Save the annotated image to the frames directory
+            # Create a draw object
+            draw = ImageDraw.Draw(annotated_image)
+
+            # Define the text and position
+            text = f"Frame: {frame_count} ({time_in_seconds} seconds)"
+
+            # Define the font (you might need to specify the path to the font file)
+            # replace with the actual path to your Roboto-Regular.ttf file
+            font_path = 'Roboto-Regular.ttf'
+
+            # Calculate the height of the extra space and the font size
+            extra_space_height = int(0.04 * annotated_image.height)
+            font_size = extra_space_height
+
+            font = ImageFont.truetype(font_path, font_size)
+
+            # Calculate the width of the text
+            text_width, _ = draw.textsize(text, font=font)
+
+            # Calculate the position of the text to be centered
+            position = (10, 10)  # Top left corner
+
+            # Draw the text on the new image with a black background
+            draw.rectangle(
+                [position, (position[0] + text_width, position[1] + font_size)], fill='black')
+            draw.text(position, text, fill="white", font=font)
+
+            # Save the annotated image to the annotated_frames directory
             annotated_image_path = os.path.join(
-                frames_dir, f"annotated_frame_{frame_count}.jpg")
+                annotated_frames_dir, f"annotated_frame_{frame_count}.jpg")
             annotated_image.save(annotated_image_path)
 
             # Get the size of the image
@@ -144,6 +177,12 @@ def predict_video(video_path: str):
 
     # Convert the processed results to a pandas DataFrame
     df = pd.DataFrame(all_results)
+
+    # Create a GIF from the annotated frames
+    annotated_frame_paths = sorted(glob.glob('annotated_frames/*.jpg'))
+    images = [imageio.imread(frame_path)
+              for frame_path in annotated_frame_paths]
+    imageio.mimsave('movie.gif', images)
 
     return df
 
