@@ -7,6 +7,7 @@ import json
 import io
 import base64
 from ultralytics import YOLO
+import pandas as pd
 
 loaded_model = None
 loaded_model_path = None
@@ -55,6 +56,9 @@ def predict_image(image_path: str):
     processed_results = process_results(results, image_size)
     del results
 
+    # Convert the processed results to a pandas DataFrame
+    df = pd.DataFrame(processed_results['instances'])
+
     # Save the annotated image to a file
     annotated_image_path = 'annotated_image.jpg'
     annotated_image.save(annotated_image_path)
@@ -62,7 +66,7 @@ def predict_image(image_path: str):
     # Convert the annotated image to base64
     annotated_image_base64 = image_to_base64_for_image(annotated_image_path)
 
-    return {'type': 'image', "image": annotated_image_base64, "model_used": model_name, "detection_results": processed_results}
+    return df, {'type': 'image', "image": annotated_image_base64, "model_used": model_name}
 
 
 def calculate_area(segments, image_size):

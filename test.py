@@ -1,6 +1,5 @@
 from predict import predict_image
+from IPython.display import display
 
-result = predict_image('disk/shared_images/02_014.jpg')
-print('end1')
-print(result)
-print('end2')
+df, info = predict_image('disk/shared_images/02_014.jpg')
+display(df)
