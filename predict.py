@@ -76,12 +76,12 @@ def predict_image(image_path: str):
     return df, {'type': 'image', "image": annotated_image_base64, "model_used": model_name}
 
 
-def predict_video(video_path: str):
+def predict_video(video_path_or_stream_url: str, is_stream=False):
     # Use the loaded model for prediction
     model, model_name = load_model_if_needed()
 
     # Open the video file
-    video = cv2.VideoCapture(video_path)
+    video = cv2.VideoCapture(video_path_or_stream_url)
 
     # Get the frames per second (fps) of the video
     fps = video.get(cv2.CAP_PROP_FPS)
@@ -95,10 +95,14 @@ def predict_video(video_path: str):
     os.makedirs(frames_dir, exist_ok=True)
     os.makedirs(annotated_frames_dir, exist_ok=True)
 
-    while video.isOpened():
-        ret, frame = video.read()
-        if not ret:
-            break
+    try:
+        while True:
+            ret, frame = video.read()
+            if not ret:
+                if is_stream:
+                    continue  # If it's a stream, keep trying to read frames
+                else:
+                    break  # If it's a file, end the loop when no more frames are available
 
         # Calculate the time in seconds
         time_in_seconds = frame_count // fps
@@ -173,7 +177,9 @@ def predict_video(video_path: str):
 
         frame_count += 1
 
-    video.release()
+    finally:
+        video.release()
+        plt.close()
 
     # Convert the processed results to a pandas DataFrame
     df = pd.DataFrame(all_results)
