@@ -182,7 +182,7 @@ def predict_video(video_path: str):
     annotated_frame_paths = sorted(glob.glob('annotated_frames/*.jpg'))
     images = [imageio.imread(frame_path)
               for frame_path in annotated_frame_paths]
-    imageio.mimsave('movie.gif', images)
+    imageio.mimsave('movie.gif', images, duration=0.5, loop=0)
 
     return df
 
