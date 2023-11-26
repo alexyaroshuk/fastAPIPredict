@@ -209,9 +209,13 @@ def predict_stream(video_path_or_stream_url: str, is_stream=True):
             ret, frame = video.read()
             if not ret:
                 if is_stream:
+                    print("Frame not available, trying again...")
                     continue  # If it's a stream, keep trying to read frames
                 else:
+                    print("No more frames available")
                     break  # If it's a file, end the loop when no more frames are available
+
+            print("Processing frame...")
 
             # Run inference on the frame
             results = model(frame)  # list of Results objects
@@ -226,6 +230,8 @@ def predict_stream(video_path_or_stream_url: str, is_stream=True):
             # Convert the image to RGB mode
             annotated_image = annotated_image.convert("RGB")
 
+            print("Frame processed, yielding result...")
+
             # Display the image
             plt.imshow(annotated_image)
             plt.axis('off')
@@ -237,7 +243,6 @@ def predict_stream(video_path_or_stream_url: str, is_stream=True):
 
     finally:
         video.release()
-        plt.close()
 
 
 def calculate_area(segments, image_size):
