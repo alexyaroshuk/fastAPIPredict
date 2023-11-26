@@ -186,11 +186,11 @@ def predict_video(video_path: str):
         annotated_frame_paths, key=lambda path: int(path.split('_')[-1].split('.')[0]))
 
     # Read all the annotated frames into a list
-    images = [imageio.imread(frame_path)
-              for frame_path in annotated_frame_paths]
+    images = [Image.open(frame_path) for frame_path in annotated_frame_paths]
 
     # Save the images as a GIF
-    imageio.mimsave('movie.gif', images, duration=2, loop=0)
+    images[0].save('movie.gif', save_all=True,
+                   append_images=images[1:], duration=500, loop=0)
 
     return df
 
