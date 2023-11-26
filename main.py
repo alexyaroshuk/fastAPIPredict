@@ -705,7 +705,7 @@ def process_results(results, image_size):
 def predict_image(image_path: str):
     global loaded_model, loaded_model_path
 
-    # Retrieve the default model name and path
+    # Use the default model name and path
     model_name, model_path = DEFAULT_MODEL_NAME, DEFAULT_MODEL_PATH
 
     # If no model has been loaded or if the model has changed, load the model
@@ -715,10 +715,6 @@ def predict_image(image_path: str):
 
     # Use the loaded model for prediction
     model = loaded_model
-
-    # Check if the file is a video
-    if image_path.endswith('.mp4'):
-        raise ValueError("Video files are not supported in this function")
 
     # Read image file
     image = Image.open(image_path)
@@ -742,4 +738,7 @@ def predict_image(image_path: str):
     processed_results = process_results(results, image_size)
     del results
 
-    return {'type': 'image', "image": annotated_image, "model_used": model_name, "detection_results": processed_results}
+    # Convert the annotated image to base64
+    annotated_image_base64 = image_to_base64_for_image(annotated_image)
+
+    return {'type': 'image', "image": annotated_image_base64, "model_used": model_name, "detection_results": processed_results}
