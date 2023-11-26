@@ -78,7 +78,7 @@ def predict_image(image_path: str):
 
 def predict_video(video_path: str):
     # Use the loaded model for prediction
-    model = load_model_if_needed()
+    model, model_name = load_model_if_needed()
 
     # Open the video file
     video = cv2.VideoCapture(video_path)
