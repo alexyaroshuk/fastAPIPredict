@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import glob
 import gc
 from config import Config
@@ -195,7 +196,7 @@ def predict_video(video_path: str):
     return df
 
 
-def predict_stream(video_path_or_stream_url: str, is_stream=False):
+def predict_stream(video_path_or_stream_url: str, is_stream=True):
     # Use the loaded model for prediction
     model, model_name = load_model_if_needed()
 
@@ -229,6 +230,9 @@ def predict_stream(video_path_or_stream_url: str, is_stream=False):
             plt.axis('off')
             display(plt.gcf())
             clear_output(wait=True)
+
+            # Yield the annotated image
+            yield annotated_image
 
     finally:
         video.release()
