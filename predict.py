@@ -1,3 +1,4 @@
+from IPython.display import display, Image, clear_output
 import matplotlib.pyplot as plt
 import glob
 import gc
