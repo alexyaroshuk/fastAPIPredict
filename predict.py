@@ -197,32 +197,52 @@ def predict_video(video_path: str):
     return df
 
 
-def predict_stream(video_path_or_stream_url: str):
+def predict_stream(video_path_or_stream_url: str, is_stream=True):
     # Use the loaded model for prediction
     model, model_name = load_model_if_needed()
 
     # Open the video file or stream
-    reader = imageio.get_reader(video_path_or_stream_url, 'ffmpeg')
+    video = cv2.VideoCapture(video_path_or_stream_url)
 
-    for i, frame in enumerate(reader):
-        print("Processing frame...")
+    try:
+        while True:
+            ret, frame = video.read()
+            if not ret:
+                if is_stream:
+                    print("Frame not available, trying again...")
+                    continue  # If it's a stream, keep trying to read frames
+                else:
+                    print("No more frames available")
+                    break  # If it's a file, end the loop when no more frames are available
 
-        # Run inference on the frame
-        results = model(frame)  # list of Results objects
+            print("Processing frame...")
 
-        # Get the annotated image from the results
-        annotated_image = results[0].plot(font='Roboto-Regular.ttf', pil=True)
+            # Run inference on the frame
+            results = model(frame)  # list of Results objects
 
-        # Convert the numpy array to a PIL Image
-        annotated_image = Image.fromarray(annotated_image)
+            # Get the annotated image from the results
+            annotated_image = results[0].plot(
+                font='Roboto-Regular.ttf', pil=True)
 
-        # Convert the image to RGB mode
-        annotated_image = annotated_image.convert("RGB")
+            # Convert the numpy array to a PIL Image
+            annotated_image = Image.fromarray(annotated_image)
 
-        print("Frame processed, yielding result...")
+            # Convert the image to RGB mode
+            annotated_image = annotated_image.convert("RGB")
 
-        # Yield the annotated image
-        yield annotated_image
+            print("Frame processed, yielding result...")
+
+            # Display the image
+            plt.imshow(annotated_image)
+            plt.axis('off')
+            display(plt.gcf())
+            clear_output(wait=True)
+
+            # Yield the annotated image
+            yield annotated_image
+
+    finally:
+        video.release()
 
 
 def calculate_area(segments, image_size):
