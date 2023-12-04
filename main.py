@@ -368,8 +368,16 @@ async def list_shared_images():
                 })
             else:
                 # If the file is not a video, just add the filename
+                image_path = os.path.join(SHARED_IMAGE_DIR, file)
+                with Image.open(image_path) as img:
+                    # Resize the image
+                    img.thumbnail((800, 800))  # Resize to 800x800 pixels
+                    # Save the resized image
+                    resized_image_path = os.path.join(
+                        SHARED_IMAGE_DIR, f"resized_{file}")
+                    img.save(resized_image_path)
                 images.append({
-                    'filename': file,
+                    'filename': f"resized_{file}",
                     'is_video': False
                 })
         return {"images": images}
