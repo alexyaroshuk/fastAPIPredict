@@ -197,54 +197,6 @@ def predict_video(video_path: str):
     return df
 
 
-def predict_stream(video_path_or_stream_url: str, is_stream=True):
-    # Use the loaded model for prediction
-    model, model_name = load_model_if_needed()
-
-    # Open the video file or stream
-    video = cv2.VideoCapture(video_path_or_stream_url)
-
-    try:
-        while True:
-            ret, frame = video.read()
-            if not ret:
-                if is_stream:
-                    print("Frame not available, trying again...")
-                    continue  # If it's a stream, keep trying to read frames
-                else:
-                    print("No more frames available")
-                    break  # If it's a file, end the loop when no more frames are available
-
-            print("Processing frame...")
-
-            # Run inference on the frame
-            results = model(frame)  # list of Results objects
-
-            # Get the annotated image from the results
-            annotated_image = results[0].plot(
-                font='Roboto-Regular.ttf', pil=True)
-
-            # Convert the numpy array to a PIL Image
-            annotated_image = Image.fromarray(annotated_image)
-
-            # Convert the image to RGB mode
-            annotated_image = annotated_image.convert("RGB")
-
-            print("Frame processed, yielding result...")
-
-            # Display the image
-            plt.imshow(annotated_image)
-            plt.axis('off')
-            display(plt.gcf())
-            clear_output(wait=True)
-
-            # Yield the annotated image
-            yield annotated_image
-
-    finally:
-        video.release()
-
-
 def calculate_area(segments, image_size):
     polygon = Polygon(zip(segments['x'], segments['y']))
     area = polygon.area

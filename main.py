@@ -461,7 +461,7 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
                     break
 
                 # Process every 'fps' frames (i.e., every 2 seconds)
-                if frame_count % (fps * 1) == 0:
+                if frame_count % (fps * 2) == 0:
 
                     # Reduce the resolution of the frame
                     frame = cv2.resize(frame, (640, 480))
