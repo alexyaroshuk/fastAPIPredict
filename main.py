@@ -6,6 +6,7 @@ import base64
 from typing import Optional
 import uuid
 import logging
+import glob
 import gc
 import torch
 import cv2
@@ -451,19 +452,20 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
         # Get the total area of a frame (all frames have the same size)
         frame_area = None
 
-        while video.isOpened():
-            ret, frame = video.read()
-            if not ret:
-                break
+        # Create a temporary directory
+        with tempfile.TemporaryDirectory() as temp_dir:
 
-            # Process every 'fps' frames (i.e., every 2 seconds)
-            if frame_count % (fps * 2) == 0:
+            while video.isOpened():
+                ret, frame = video.read()
+                if not ret:
+                    break
 
-                # Reduce the resolution of the frame
-                frame = cv2.resize(frame, (640, 480))
+                # Process every 'fps' frames (i.e., every 2 seconds)
+                if frame_count % (fps * 1) == 0:
 
-                # Create a temporary directory
-                with tempfile.TemporaryDirectory() as temp_dir:
+                    # Reduce the resolution of the frame
+                    frame = cv2.resize(frame, (640, 480))
+
                     # Save the frame as an image
                     frame_path = os.path.join(
                         temp_dir, f"frame_{frame_count}.jpg")
@@ -486,7 +488,7 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
                     extra_space_height = int(0.04 * annotated_image.height)
                     font_size = extra_space_height
 
-                   # Create a new image with extra space at the top
+                    # Create a new image with extra space at the top
                     new_image = Image.new(
                         'RGB', (annotated_image.width, annotated_image.height + extra_space_height), 'black')
 
@@ -521,11 +523,27 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
                         new_image)
 
                     # Save the annotated image to the user's directory
+
                     annotated_image_path = os.path.join(
                         temp_dir, f"annotated_frame_{frame_count}.jpg")
+                    print(f"Saving annotated image to {annotated_image_path}")
                     annotated_image.save(annotated_image_path)
 
                     annotated_images.append(annotated_image_base64)
+
+                    # Create a GIF from the annotated frames
+                    annotated_frame_paths = glob.glob(
+                        os.path.join(temp_dir, 'annotated_*.jpg'))  # Only match annotated frames
+                    annotated_frame_paths = sorted(
+                        annotated_frame_paths, key=lambda path: int(path.split('_')[-1].split('.')[0]))
+                    images = [Image.open(frame_path)
+                              for frame_path in annotated_frame_paths]
+                    images[0].save('movie.gif', save_all=True,
+                                   append_images=images[1:], duration=500, loop=0)
+
+                    # Read the GIF file and convert it to base64
+                    with open('movie.gif', 'rb') as f:
+                        gif_base64 = base64.b64encode(f.read()).decode()
 
                     # Get the size of the image
                     image_size = frame.shape[1], frame.shape[0]
@@ -549,28 +567,28 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
                         area = float(area_info['area'])
                         total_area_by_type[class_name] += area
 
-                # Append the results for this frame to results_json
-                results_json.append({
+                    # Append the results for this frame to results_json
+                    results_json.append({
 
-                    'frame_number': frame_count,
-                    'time_in_seconds': time_in_seconds,
-                    'annotated_image': annotated_image_base64,
+                        'frame_number': frame_count,
+                        'time_in_seconds': time_in_seconds,
+                        'annotated_image': annotated_image_base64,
 
-                    'detection_results': processed_results,
+                        'detection_results': processed_results,
 
 
-                })
+                    })
 
-                # Delete the frame to free up memory
-                del frame
-                gc.collect()
+                    # Delete the frame to free up memory
+                    del frame
+                    gc.collect()
 
-            frame_count += 1
+                frame_count += 1
 
-        video.release()
-        print(f"Number of frames processed: {len(results_json)}")
-        del results
-        gc.collect()
+            video.release()
+            print(f"Number of frames processed: {len(results_json)}")
+            del results
+            gc.collect()
 
         # Calculate the total area distribution
         total_area_by_type = {
@@ -591,6 +609,7 @@ async def predict(request: Request, file: Optional[UploadFile] = File(None), med
                 'Total area by type': total_area_by_type,
                 'Average % area by type': average_percentage_area_by_type,
             },
+            'gif': gif_base64,
         }
 
     else:
