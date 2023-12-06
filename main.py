@@ -379,7 +379,8 @@ async def list_shared_images():
                     # Save the resized image
                     resized_image_path = os.path.join(
                         SHARED_IMAGE_DIR, f"resized_{file}")
-                    img.save(resized_image_path)
+                    if not os.path.exists(resized_image_path):
+                        img.save(resized_image_path)
                 images.append({
                     'filename': f"resized_{file}",
                     'is_video': False
