@@ -1,19 +1,23 @@
-from IPython.display import display, Image, clear_output
-import matplotlib.pyplot as plt
-import glob
+"""
+This module is designed for YOLO object detection in a Google Colab or similar environment. 
+It provides functionalities for loading models, processing images and videos, running predictions, 
+and returning results as a pandas DataFrame. It is not designed for use with FastAPI or a client-server method.
+"""
+
 import gc
-from config import Config
+import json
+import base64
+import glob
+from ultralytics import YOLO
+import pandas as pd
+import cv2
 import os
 from PIL import Image, ImageDraw, ImageFont
 from shapely.geometry import Polygon
 from collections import defaultdict
-import json
-import io
-import base64
-from ultralytics import YOLO
-import pandas as pd
-import cv2
-import imageio
+from config import Config
+
+
 loaded_model = None
 loaded_model_path = None
 

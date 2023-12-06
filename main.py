@@ -1,4 +1,8 @@
-# test
+"""
+This module is used for YOLO object detection. It includes functionalities for loading models, 
+processing images and videos, and running predictions.
+"""
+
 import io
 import tempfile
 import os
@@ -355,8 +359,8 @@ async def list_shared_images():
         files = os.listdir(SHARED_IMAGE_DIR)
         images = []
         for file in files:
-            # Skip thumbnail images
-            if file.endswith('_thumbnail.jpg'):
+            # Skip thumbnail images and already resized images
+            if file.endswith('_thumbnail.jpg') or file.startswith('resized_'):
                 continue
             if file.endswith('.mp4'):
                 # If the file is a video, add the filename of the thumbnail image
