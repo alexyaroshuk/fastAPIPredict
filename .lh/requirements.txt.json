@@ -1,0 +1,18 @@
+{
+    "sourceFile": "requirements.txt",
+    "activeCommit": 0,
+    "commits": [
+        {
+            "activePatchIndex": 0,
+            "patches": [
+                {
+                    "date": 1733825587791,
+                    "content": "Index: \n===================================================================\n--- \n+++ \n"
+                }
+            ],
+            "date": 1733825587791,
+            "name": "Commit-0",
+            "content": "fastapi==0.103.2\r\nstarlette<0.28.0,>=0.27.0\r\nnumpy>=1.25.0\r\nuvicorn\r\nultralytics\r\nPillow==9.5.0\r\ntorch\r\npsutil==5.9.4\r\npython-multipart\r\ndill\r\nitsdangerous\r\nopencv-python-headless\r\nmoviepy\r\nshapely"
+        }
+    ]
+}
