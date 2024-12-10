@@ -1,8 +1,8 @@
 fastapi==0.103.2
 starlette<0.28.0,>=0.27.0
-numpy>=1.25.0
+numpy>=1.21.0,<1.22.0
 uvicorn
-ultralytics
+ultralytics==8.0.0
 Pillow==9.5.0
 torch
 psutil==5.9.4
@@ -10,5 +10,5 @@ python-multipart
 dill
 itsdangerous
 opencv-python-headless
-moviepy
-shapely
+moviepy==1.0.3
+shapely<2.0.0

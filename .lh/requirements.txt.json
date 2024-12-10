@@ -3,11 +3,15 @@
     "activeCommit": 0,
     "commits": [
         {
-            "activePatchIndex": 0,
+            "activePatchIndex": 1,
             "patches": [
                 {
                     "date": 1733825587791,
                     "content": "Index: \n===================================================================\n--- \n+++ \n"
+                },
+                {
+                    "date": 1733825874769,
+                    "content": "Index: \n===================================================================\n--- \n+++ \n@@ -1,14 +1,14 @@\n fastapi==0.103.2\r\n starlette<0.28.0,>=0.27.0\r\n-numpy>=1.25.0\r\n+numpy>=1.21.0,<1.22.0\r\n uvicorn\r\n-ultralytics\r\n+ultralytics==8.0.0\r\n Pillow==9.5.0\r\n torch\r\n psutil==5.9.4\r\n python-multipart\r\n dill\r\n itsdangerous\r\n opencv-python-headless\r\n\\ No newline at end of file\n-moviepy\r\n-shapely\n+moviepy==1.0.3\r\n+shapely<2.0.0\n\\ No newline at end of file\n"
                 }
             ],
             "date": 1733825587791,
